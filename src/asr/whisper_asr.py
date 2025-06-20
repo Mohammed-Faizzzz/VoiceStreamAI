@@ -10,7 +10,7 @@ from .asr_interface import ASRInterface
 
 class WhisperASR(ASRInterface):
     def __init__(self, **kwargs):
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        device = "cpu"
         model_name = kwargs.get("model_name", "openai/whisper-large-v3")
         self.asr_pipeline = pipeline(
             "automatic-speech-recognition",

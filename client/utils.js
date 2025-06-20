@@ -1,8 +1,6 @@
 /**
  * VoiceStreamAI Client - WebSocket-based real-time transcription
  *
- * Contributor:
- * - Alessandro Saccoia - alessandro.saccoia@gmail.com
  */
 
 let websocket;
