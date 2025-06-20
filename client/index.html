@@ -135,6 +135,16 @@
 </button>
 <button id="stopButton" disabled>Stop Streaming
 </button>
+
+<br/>
+<div class="control-group">
+  <label class="label">Local Webcam Feed:</label>
+  <video id="localVideo" width="320" height="240" autoplay muted style="border: 1px solid #ddd; border-radius: 5px; background: #eee;"></video>
+  <div id="cameraStatus" style="font-size: 0.9em; color: #555; margin-top: 5px;">Camera: Not Initialized</div>
+  <div id="emotionDisplay" style="font-size: 1.1em; color: #333; margin-top: 5px; font-weight: bold;">Emotion: --</div>
+</div>
+<br/>
+
 <div id="transcription"></div>
 <br/>
 <div>WebSocket: <span id="webSocketStatus">Not Connected</span></div>

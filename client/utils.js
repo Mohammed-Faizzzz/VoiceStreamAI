@@ -23,6 +23,11 @@ const selectedStrategy = document.querySelector('#bufferingStrategySelect');
 const chunk_length_seconds = document.querySelector('#chunk_length_seconds');
 const chunk_offset_seconds = document.querySelector('#chunk_offset_seconds');
 
+// Add references for video elements
+const videoElement = document.getElementById('localVideo');
+const cameraStatus = document.getElementById('cameraStatus');
+const emotionDisplay = document.getElementById('emotionDisplay'); // Added in index.html
+
 websocketAddress.addEventListener("input", resetWebsocketHandler);
 
 websocketAddress.addEventListener("keydown", (event) => {
@@ -122,8 +127,15 @@ function startRecordingHandler() {
 
     context = new AudioContext();
 
+
     let onSuccess = async (stream) => {
-        // Push user config to server
+        // Display local video feed
+        videoElement.srcObject = stream;
+        videoElement.onloadedmetadata = () => {
+            videoElement.play();
+            cameraStatus.textContent = 'Camera: Active';
+        };
+
         let language = selectedLanguage.value !== 'multilingual' ? selectedLanguage.value : null;
         sendAudioConfig(language);
 
@@ -134,7 +146,49 @@ function startRecordingHandler() {
             processAudio(event.data);
         };
         input.connect(recordingNode);
+
+
+        // Create a canvas to draw video frames for conversion to image data
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Ensure canvas dimensions match video for proper drawing
+        videoElement.onresize = () => { // Or use onloadedmetadata to set initial size
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+        };
+        // Initial size set
+        canvas.width = videoElement.videoWidth || 320; // Default if not loaded yet
+        canvas.height = videoElement.videoHeight || 240;
+
+
+        // Function to capture and send a video frame
+        function sendVideoFrame() {
+            if (!videoElement.videoWidth || !videoElement.videoHeight) {
+                // Video not ready yet
+                return;
+            }
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+                // Convert canvas content to JPEG and get base64 string
+                // Adjust quality (0.0 - 1.0) for bandwidth/performance trade-off
+                const imageDataUrl = canvas.toDataURL('image/jpeg', 0.5); // 0.5 for quicker transmission
+                const base64Image = imageDataUrl.split(',')[1]; // Remove "data:image/jpeg;base64," prefix
+
+                // NEW: Send as JSON with a 'type' to differentiate from audio
+                websocket.send(JSON.stringify({
+                    type: 'video_frame',
+                    data: base64Image
+                }));
+            }
+        }
+        
+        // Start sending video frames periodically (e.g., 5 frames per second)
+        // Adjust interval based on desired frame rate and performance.
+        window.videoFrameInterval = setInterval(sendVideoFrame, 1000 / 5); // Send 5 FPS
+
     };
+
     let onError = (error) => {
         console.error(error);
     };
@@ -144,6 +198,11 @@ function startRecordingHandler() {
             autoGainControl: false,
             noiseSuppression: true,
             latency: 0
+        },
+        video: { // Add video constraints
+            width: 320,
+            height: 240,
+            frameRate: { ideal: 10, max: 15 } // Reduce frame rate to save bandwidth
         }
     }).then(onSuccess, onError);
 
@@ -168,15 +227,24 @@ function stopRecordingHandler() {
     isRecording = false;
 
     if (globalStream) {
-        globalStream.getTracks().forEach(track => track.stop());
+        globalStream.getTracks().forEach(track => track.stop()); // Stops both audio and video tracks
+        videoElement.srcObject = null; // Clear video display
+        cameraStatus.textContent = 'Camera: Stopped'; // Update status
     }
-    if (processor) {
+    if (processor) { // 'processor' is likely the AudioWorkletNode - ensure it's disconnected
         processor.disconnect();
         processor = null;
     }
     if (context) {
         context.close().then(() => context = null);
     }
+    
+    // NEW: Clear the video frame sending interval
+    if (window.videoFrameInterval) {
+        clearInterval(window.videoFrameInterval);
+        window.videoFrameInterval = null;
+    }
+
     startButton.disabled = false;
     stopButton.disabled = true;
 }
